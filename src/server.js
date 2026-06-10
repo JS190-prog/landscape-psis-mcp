@@ -81,7 +81,7 @@ app.get("/health", (req, res) => {
   res.json({
     ok: true,
     service: "landscape-psis-mcp",
-    version: "1.6.0",
+    version: "1.7.0",
     psis: describePsisConfig(),
     endpoints: metadata(req).endpoints,
     queryKeyMode: requestDebugDefaults(req)

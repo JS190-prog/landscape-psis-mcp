@@ -1,5 +1,5 @@
 import { searchPesticides, getPesticideDetail, searchCancelledPesticides, rawPsisRequest, testConnection, debugPsisConnection } from "./psisClient.js";
-import { normalizeLandscapeTerms, evaluateFit } from "./landscape.js";
+import { normalizeLandscapeTerms, evaluateFit, buildCandidateResult } from "./landscape.js";
 import { config } from "./config.js";
 
 const inputString = { type: "string" };
@@ -139,14 +139,14 @@ const internalTools = [
   },
   {
     name: "check_landscape_pesticide_fit",
-    description: "제품명, 수종, 병해충을 기준으로 PSIS 등록정보와 등록취소 정보를 조회해 조경 약품 적합성을 판정합니다. psisApiUrl을 넣으면 그 URL의 apiKey를 사용합니다.",
+    description: "제품명, 수종, 병해충을 기준으로 PSIS 등록정보와 등록취소 정보를 조회해 조경 약품 적합성을 판정합니다. 제품명을 비우면 작물명/병해충명 기준 등록 약제 후보 목록을 반환합니다. psisApiUrl을 넣으면 그 URL의 apiKey를 사용합니다.",
     inputSchema: {
       type: "object",
       properties: {
         psisApiUrl: psisApiUrlProperty,
         psisApiKey: psisApiKeyProperty,
         apiKey: psisApiKeyProperty,
-        productName: { ...inputString, description: "제품명/상표명. 예: 살비왕, 오티바" },
+        productName: { ...inputString, description: "제품명/상표명. 예: 살비왕, 오티바. 비우면 등록 약제 후보 목록을 검색합니다." },
         cropName: { ...inputString, description: "수종/작물명. 예: 소나무" },
         targetPestOrDisease: { ...inputString, description: "대상 병해충. 예: 응애류, 잎마름병" },
         purpose: { ...inputString, description: "방제 목적 설명" },
@@ -155,7 +155,7 @@ const internalTools = [
         applicationMethod: { ...inputString, description: "살포방법. 선택" },
         serviceType: { ...inputString, description: "선택. 기본 AA001." }
       },
-      required: ["productName", "cropName", "targetPestOrDisease"],
+      required: ["cropName", "targetPestOrDisease"],
       additionalProperties: false
     }
   },
@@ -179,11 +179,11 @@ const internalTools = [
 
 const publicFitTool = withReadOnlyHints({
   name: "check_landscape_pesticide_fit",
-  description: "읽기 전용 단일 조회 도구입니다. 제품명, 수종/작물명, 병해충명을 한 번에 받아 PSIS 등록정보와 등록취소 정보를 내부적으로 조회하고 조경 약품 사용 적합성을 판정합니다. 서버 URL의 ?psisApiKey= 또는 ?apiKey= 값을 자동 사용합니다.",
+  description: "읽기 전용 단일 조회 도구입니다. 제품명을 입력하면 해당 제품의 PSIS 등록 적합성을 판정하고, 제품명을 비우면 수종/작물명과 병해충명 기준으로 등록 약제 후보 목록을 반환합니다. 서버 URL의 ?psisApiKey= 또는 ?apiKey= 값을 자동 사용합니다.",
   inputSchema: {
     type: "object",
     properties: {
-      productName: { ...inputString, description: "제품명/상표명. 예: 살비왕, 오티바" },
+      productName: { ...inputString, description: "제품명/상표명. 예: 살비왕, 오티바. 비우면 작물명/병해충명 기준 등록 약제 후보를 검색합니다." },
       cropName: { ...inputString, description: "수종/작물명. 예: 소나무, 조경수, 장미" },
       targetPestOrDisease: { ...inputString, description: "대상 병해충. 예: 응애류, 점박이응애, 잎마름병" },
       purpose: { ...inputString, description: "방제 목적 설명. 선택" },
@@ -191,12 +191,12 @@ const publicFitTool = withReadOnlyHints({
       dilution: { ...inputString, description: "실제 희석배수. 선택" },
       applicationMethod: { ...inputString, description: "살포방법. 선택" }
     },
-    required: ["productName", "cropName", "targetPestOrDisease"],
+    required: ["cropName", "targetPestOrDisease"],
     additionalProperties: false
   }
 }, {
-  invoking: "농약안전정보시스템에서 등록 여부를 조회하고 있습니다.",
-  invoked: "농약 등록 적합성 판정이 완료되었습니다."
+  invoking: "농약안전정보시스템에서 등록 여부 또는 등록 후보를 조회하고 있습니다.",
+  invoked: "농약 등록 적합성 또는 후보 조회가 완료되었습니다."
 });
 
 export const allTools = internalTools.map((tool) => withReadOnlyHints(tool));
@@ -220,6 +220,10 @@ export async function callTool(name, args = {}) {
       const normalized = normalizeLandscapeTerms({ cropName: args.cropName, targetPestOrDisease: args.targetPestOrDisease });
       const cropCandidates = normalized.cropCandidates.slice(0, 4);
       const pestCandidates = normalized.pestOrDiseaseCandidates.slice(0, 3);
+      const productName = String(args.productName || "").trim();
+      // An explicitly supplied product must never be silently ignored, so purpose wording
+      // (e.g. "적합한지 찾아줘") only triggers candidate mode when no product is given.
+      const candidateMode = !productName;
       const searchInputs = [];
       for (const crop of cropCandidates) {
         for (const pest of pestCandidates) {
@@ -232,7 +236,7 @@ export async function callTool(name, args = {}) {
         psisApiKey: args.psisApiKey,
         apiKey: args.apiKey,
         serviceType: args.serviceType,
-        pestiBrandName: args.productName,
+        pestiBrandName: candidateMode ? undefined : productName,
         cropName: crop,
         diseaseWeedName: pest,
         similarFlag: "Y",
@@ -240,15 +244,30 @@ export async function callTool(name, args = {}) {
       }).catch((error) => ({ ok: false, error: { code: error.code || "SEARCH_ERROR", message: error.message }, items: [] })));
       const results = await Promise.all(searches);
       const registrationItems = results.flatMap((r) => r.items || []).slice(0, config.fit.maxReturnedItems);
-      const cancelled = await searchCancelledPesticides({
-        psisApiUrl: args.psisApiUrl,
-        psisApiKey: args.psisApiKey,
-        apiKey: args.apiKey,
-        serviceType: args.serviceType,
-        pestiBrandName: args.productName,
-        displayCount: config.fit.searchDisplayCount
-      }).catch((error) => ({ ok: false, error: { code: error.code || "CANCELLED_SEARCH_ERROR", message: error.message }, items: [] }));
+
+      const cancelled = candidateMode
+        ? { ok: true, skipped: true, reason: "제품명이 없는 등록 약제 후보 검색에서는 등록취소 전체 목록을 조회하지 않습니다.", items: [] }
+        : await searchCancelledPesticides({
+            psisApiUrl: args.psisApiUrl,
+            psisApiKey: args.psisApiKey,
+            apiKey: args.apiKey,
+            serviceType: args.serviceType,
+            pestiBrandName: productName,
+            displayCount: config.fit.searchDisplayCount
+          }).catch((error) => ({ ok: false, error: { code: error.code || "CANCELLED_SEARCH_ERROR", message: error.message }, items: [] }));
+
+      const fit = candidateMode
+        ? buildCandidateResult({
+            cropName: args.cropName,
+            targetPestOrDisease: args.targetPestOrDisease,
+            registrationItems,
+            cancelledItems: cancelled.items || [],
+            maxCandidates: config.fit.maxReturnedItems
+          })
+        : evaluateFit({ ...args, productName, registrationItems, cancelledItems: cancelled.items || [] });
+
       return {
+        mode: candidateMode ? "candidate_search" : "product_fit_check",
         normalized,
         limits: {
           candidateSearchesPlanned: searchInputs.length,
@@ -257,8 +276,8 @@ export async function callTool(name, args = {}) {
           maxReturnedItems: config.fit.maxReturnedItems
         },
         searchResults: results.map((r) => ({ ok: r.ok, cached: r.cached, error: r.error, request: r.request, count: (r.items || []).length })),
-        cancelledSearch: { ok: cancelled.ok, error: cancelled.error, request: cancelled.request, count: (cancelled.items || []).length },
-        fit: evaluateFit({ ...args, registrationItems, cancelledItems: cancelled.items || [] })
+        cancelledSearch: { ok: cancelled.ok, skipped: cancelled.skipped || false, reason: cancelled.reason, error: cancelled.error, request: cancelled.request, count: (cancelled.items || []).length },
+        fit
       };
     }
     case "psis_raw_request":

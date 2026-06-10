@@ -4,7 +4,7 @@ import { config } from "./config.js";
 export const SERVER_INFO = {
   name: "landscape-psis-mcp",
   title: "조경수 농약 적합성 판단",
-  version: "1.6.0"
+  version: "1.7.0"
 };
 
 function jsonRpcResult(id, result) {

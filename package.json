@@ -1,7 +1,7 @@
 {
   "name": "landscape-psis-mcp",
-  "version": "1.6.0",
-  "description": "ChatGPT MCP server for PSIS pesticide OpenAPI with query-key mode, cache, rate limit, timeout, API key masking, PSIS HTTP fallback, and debug diagnostics, and fit-only public MCP tool exposure.",
+  "version": "1.7.0",
+  "description": "ChatGPT MCP server for PSIS pesticide OpenAPI with query-key mode, cache, rate limit, timeout, API key masking, PSIS HTTP fallback, and debug diagnostics, fit-only public MCP tool exposure, and candidate-list lookup mode.",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
