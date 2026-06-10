@@ -25,18 +25,24 @@ ChatGPT 새 앱 창에는 아래처럼 입력합니다.
 | 설명 | 농약안전정보시스템 OpenAPI로 조경수 농약 등록정보와 적합성을 확인합니다. |
 | 연결 | 서버 URL |
 | 인증 | 인증 없음 |
-| 서버 URL | `https://배포주소/mcp?psisApiKey=발급키` |
+| 서버 URL | `https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=발급키` |
 
 `apiKey` 이름도 호환됩니다.
 
 ```text
-https://배포주소/mcp?apiKey=발급키
+https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?apiKey=발급키
 ```
 
 SSE 화면만 보이는 클라이언트에서는 아래도 지원합니다.
 
 ```text
-https://배포주소/sse?psisApiKey=발급키
+https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/sse?psisApiKey=발급키
+```
+
+직접 배포해서 사용하는 경우에는 자신의 배포 주소를 사용합니다.
+
+```text
+https://배포주소/mcp?psisApiKey=발급키
 ```
 
 중요: ChatGPT 새 앱 서버 URL에는 `http://psis.rda.go.kr/openApi/service.do?...`를 직접 넣지 않습니다. 그 주소는 원본 PSIS API이고, ChatGPT에는 이 MCP 서버를 배포한 주소를 넣습니다.
@@ -46,7 +52,7 @@ https://배포주소/sse?psisApiKey=발급키
 사용자가 다음처럼 연결하면,
 
 ```text
-https://landscape-psis-mcp.example.com/mcp?psisApiKey=YOUR_KEY
+https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=YOUR_KEY
 ```
 
 MCP 서버는 내부적으로 아래 PSIS API를 호출합니다.
