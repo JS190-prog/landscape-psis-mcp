@@ -68,7 +68,32 @@ http://psis.rda.go.kr/openApi/service.do?apiKey=발급키&serviceCode=SVC01&serv
 
 Nginx를 앞단에 둘 경우 `docs/NGINX_VPS.md`처럼 access log에서 query string을 빼야 합니다.
 
-## 5. ChatGPT에서 질문 예시
+## 5. ChatGPT에서 도구 승인 질문 줄이기
+
+기본값은 `MCP_PUBLIC_TOOLS=fit-only`입니다. 이 모드에서는 ChatGPT에 아래 단일 도구만 노출됩니다.
+
+```text
+check_landscape_pesticide_fit
+```
+
+이 도구는 읽기 전용으로 표시됩니다. 서버는 내부적으로 PSIS 목록 검색, 등록취소 조회, 조경 용어 정규화, 적합성 판정을 한 번에 처리합니다.
+
+```json
+{
+  "readOnlyHint": true,
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "openWorldHint": true
+}
+```
+
+관리자 디버그용으로 모든 도구를 노출하려면 서버 `.env`에 아래를 넣습니다. 일반 사용자용 공용 서버에서는 권장하지 않습니다.
+
+```env
+MCP_PUBLIC_TOOLS=all
+```
+
+## 6. ChatGPT에서 질문 예시
 
 ```text
 소나무에 살비왕을 6월 응애 방제로 사용해도 되는지 확인해줘.
@@ -83,7 +108,7 @@ Nginx를 앞단에 둘 경우 `docs/NGINX_VPS.md`처럼 access log에서 query s
 ```
 
 
-## 6. 브라우저에서는 PSIS가 되는데 MCP에서 실패할 때
+## 7. 브라우저에서는 PSIS가 되는데 MCP에서 실패할 때
 
 배포 서버에서 아래 URL을 먼저 확인합니다.
 

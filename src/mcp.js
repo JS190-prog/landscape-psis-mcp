@@ -4,7 +4,7 @@ import { config } from "./config.js";
 export const SERVER_INFO = {
   name: "landscape-psis-mcp",
   title: "조경수 농약 적합성 판단",
-  version: "1.5.0"
+  version: "1.6.0"
 };
 
 function jsonRpcResult(id, result) {
@@ -34,7 +34,7 @@ export async function handleJsonRpc(message, context = {}) {
           protocolVersion: "2025-03-26",
           capabilities: { tools: {} },
           serverInfo: SERVER_INFO,
-          instructions: "농약안전정보시스템 OpenAPI를 조회하여 조경수 농약 등록 적합성을 확인합니다. 서버 URL에 ?psisApiKey=발급키 또는 ?apiKey=발급키를 붙이면 해당 키로 농약안전정보시스템 OpenAPI를 호출합니다. 서버 환경변수 PSIS_API_BASE_URL/PSIS_API_KEY도 보조 지원합니다. 공용 서버 운영을 위해 rate limit, 캐시, timeout, API 키 마스킹, PSIS HTTP fallback, 진단 도구를 포함합니다."
+          instructions: "농약안전정보시스템 OpenAPI를 조회하여 조경수 농약 등록 적합성을 확인합니다. 서버 URL에 ?psisApiKey=발급키 또는 ?apiKey=발급키를 붙이면 해당 키로 농약안전정보시스템 OpenAPI를 호출합니다. 서버 환경변수 PSIS_API_BASE_URL/PSIS_API_KEY도 보조 지원합니다. 공용 서버 운영을 위해 rate limit, 캐시, timeout, API 키 마스킹, PSIS HTTP fallback을 포함합니다. ChatGPT에는 기본적으로 읽기 전용 단일 판정 도구만 노출하여 도구 승인 질문을 줄입니다."
         });
       case "notifications/initialized":
         return null;
@@ -78,6 +78,11 @@ export function metadata(req) {
       health: `${origin}/health`
     },
     authentication: "none for ChatGPT connector; add ?psisApiKey=YOUR_KEY or ?apiKey=YOUR_KEY to the /mcp URL. Environment variables are optional fallback.",
-    tools: tools.map((t) => ({ name: t.name, description: t.description }))
+    publicToolMode: config.mcpPublicTools,
+    tools: tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      annotations: t.annotations
+    }))
   };
 }

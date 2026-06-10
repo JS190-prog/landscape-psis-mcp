@@ -5,6 +5,12 @@ function numberEnv(name, fallback, { min, max } = {}) {
   return Math.max(min ?? safe, Math.min(max ?? safe, safe));
 }
 
+function enumEnv(name, fallback, allowed) {
+  const raw = process.env[name];
+  const value = String(raw || fallback).toLowerCase();
+  return allowed.includes(value) ? value : fallback;
+}
+
 function boolEnv(name, fallback = false) {
   const raw = process.env[name];
   if (raw === undefined || raw === null || raw === "") return fallback;
@@ -16,7 +22,7 @@ export const config = {
   // Option A: put only the issued API key here. Public shared operation should prefer URL query keys per user.
   psisApiKey: process.env.PSIS_API_KEY || "",
   // Option B: paste the full PSIS API URL here, including apiKey/serviceCode/serviceType.
-  // Example: http://psis.rda.go.kr/openApi/service.do?apiKey=ISSUED_KEY&serviceCode=SVC01&serviceType=AA002
+  // Example: http://psis.rda.go.kr/openApi/service.do?apiKey=ISSUED_KEY&serviceCode=SVC01&serviceType=AA001
   psisApiBaseUrl: process.env.PSIS_API_BASE_URL || "",
   // Optional full cancelled API URL. If omitted, the server derives cnclAgchm.do from the registration URL.
   psisCancelledApiBaseUrl: process.env.PSIS_CANCELLED_API_BASE_URL || "",
@@ -24,6 +30,9 @@ export const config = {
   maxDisplayCount: numberEnv("MAX_DISPLAY_COUNT", 50, { min: 1, max: 50 }),
   requestTimeoutMs: numberEnv("REQUEST_TIMEOUT_MS", 15000, { min: 1000, max: 60000 }),
   httpClientMode: process.env.PSIS_HTTP_CLIENT || "fetch-first",
+  // To reduce ChatGPT confirmation prompts, expose only the read-only fit tool by default.
+  // Set MCP_PUBLIC_TOOLS=all only for admin/debug connectors.
+  mcpPublicTools: enumEnv("MCP_PUBLIC_TOOLS", "fit-only", ["fit-only", "all"]),
   cache: {
     enabled: boolEnv("CACHE_ENABLED", true),
     ttlMs: numberEnv("CACHE_TTL_MS", 21600000, { min: 0, max: 86400000 }),

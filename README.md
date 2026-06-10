@@ -2,7 +2,7 @@
 
 농약안전정보시스템(PSIS) OpenAPI를 ChatGPT 새 앱에서 MCP 도구로 사용할 수 있게 감싸는 서버입니다. 사용 방식은 `korean-law-mcp`처럼 **MCP 서버 URL 뒤에 공공 API 키를 query parameter로 붙이는 방식**을 기본으로 합니다.
 
-이번 최종본은 공용 VPS 운영을 전제로 다음 보호 기능을 반영했습니다.
+이번 최종본은 공용 VPS 운영과 ChatGPT 도구 승인 질문 최소화를 전제로 다음 보호 기능을 반영했습니다.
 
 - 사용자별 URL query API 키 지원: `/mcp?psisApiKey=발급키` 또는 `/mcp?apiKey=발급키`
 - IP별 / API 키별 rate limit
@@ -12,6 +12,8 @@
 - 적합성 판정 시 후보 검색 수 / 검색 결과 수 제한
 - Nginx VPS 배포 가이드 포함
 - PSIS HTTP fetch 실패 시 Node http fallback 및 `/debug/psis` 진단 endpoint
+- ChatGPT에는 기본적으로 읽기 전용 단일 도구 `check_landscape_pesticide_fit`만 노출
+- MCP tool descriptor에 `readOnlyHint`, `destructiveHint:false`, `idempotentHint` 적용
 
 ## 1. ChatGPT 새 앱 입력값
 
@@ -63,7 +65,30 @@ http://psis.rda.go.kr/openApi/service.do?apiKey=YOUR_KEY&serviceCode=SVC01&servi
 
 `serviceType` 기본값은 `AA001`(XML)입니다. `AA002`는 브라우저용 HTML 위젯이라 서버가 자동으로 `AA001`로 교정합니다.
 
-## 3. 제공 MCP 도구
+## 3. ChatGPT에 노출되는 MCP 도구
+
+기본값은 `MCP_PUBLIC_TOOLS=fit-only`입니다. ChatGPT에는 아래 읽기 전용 단일 도구만 노출됩니다.
+
+- `check_landscape_pesticide_fit`: 제품명·수종·병해충 기준으로 PSIS 목록 검색, 등록취소 조회, 조경 용어 정규화, 적합성 판정을 한 번에 수행
+
+이렇게 하면 ChatGPT가 여러 개의 세부 도구를 반복 선택하지 않아 도구 사용 승인 질문이 줄어듭니다. 이 도구 descriptor에는 다음 힌트가 포함됩니다.
+
+```json
+{
+  "readOnlyHint": true,
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "openWorldHint": true
+}
+```
+
+관리자/debug 목적으로 모든 도구를 노출하려면 `.env`에 아래를 설정합니다.
+
+```env
+MCP_PUBLIC_TOOLS=all
+```
+
+`all` 모드에서 노출되는 도구는 다음입니다.
 
 - `psis_test_connection`: PSIS 키 연결 테스트
 - `psis_debug_connection`: 브라우저에서는 되지만 서버에서 `fetch failed`가 날 때 PSIS HTTP/DNS/outbound 진단
@@ -132,6 +157,7 @@ FIT_MAX_CANDIDATE_SEARCHES=10
 FIT_SEARCH_DISPLAY_COUNT=10
 FIT_MAX_RETURNED_ITEMS=100
 SAFE_ACCESS_LOG=true
+MCP_PUBLIC_TOOLS=fit-only
 PSIS_HTTP_CLIENT=fetch-first
 ```
 
@@ -146,6 +172,7 @@ PSIS_HTTP_CLIENT=fetch-first
 | `FIT_MAX_CANDIDATE_SEARCHES` | 10 | 적합성 판정 1회당 후보 검색 API 호출 제한 |
 | `FIT_SEARCH_DISPLAY_COUNT` | 10 | 후보 검색 1회당 결과 수 제한 |
 | `SAFE_ACCESS_LOG` | true | access log에서 query string/API 키 제외 |
+| `MCP_PUBLIC_TOOLS` | fit-only | ChatGPT에는 단일 판정 도구만 노출. 관리자용은 `all` |
 | `PSIS_HTTP_CLIENT` | fetch-first | `fetch-first` 또는 `node`. Node fetch가 실패하면 `node`로 강제 가능 |
 
 ## 7. 보조 환경변수 방식

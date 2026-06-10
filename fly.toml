@@ -11,7 +11,7 @@ primary_region = "nrt"
 
 [env]
   PORT = "3000"
-  PSIS_SERVICE_TYPE = "AA002"
+  PSIS_SERVICE_TYPE = "AA001"
   REQUEST_TIMEOUT_MS = "15000"
   CACHE_ENABLED = "true"
   CACHE_TTL_MS = "21600000"

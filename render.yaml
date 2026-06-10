@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PSIS_SERVICE_TYPE
-        value: AA002
+        value: AA001
       - key: REQUEST_TIMEOUT_MS
         value: "15000"
       - key: CACHE_ENABLED

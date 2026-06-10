@@ -5,14 +5,37 @@ import { config } from "./config.js";
 const inputString = { type: "string" };
 const psisApiUrlProperty = {
   ...inputString,
-  description: "선택. 농약안전정보시스템 전체 호출 URL. 예: http://psis.rda.go.kr/openApi/service.do?apiKey=발급키&serviceCode=SVC01&serviceType=AA002"
+  description: "선택. 농약안전정보시스템 전체 호출 URL. 예: http://psis.rda.go.kr/openApi/service.do?apiKey=발급키&serviceCode=SVC01&serviceType=AA001"
 };
 const psisApiKeyProperty = {
   ...inputString,
   description: "선택. URL query 방식이 아닌 도구 인자로 직접 전달하는 PSIS API 키. 운영용은 /mcp?psisApiKey=발급키 방식을 권장합니다."
 };
 
-export const tools = [
+const readOnlyAnnotations = Object.freeze({
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true
+});
+
+function withReadOnlyHints(tool, meta = {}) {
+  return {
+    ...tool,
+    annotations: {
+      ...readOnlyAnnotations,
+      ...(tool.annotations || {})
+    },
+    _meta: {
+      "openai/toolInvocation/invoking": meta.invoking || "농약등록정보를 조회하고 있습니다.",
+      "openai/toolInvocation/invoked": meta.invoked || "농약등록정보 조회가 완료되었습니다.",
+      ...(tool._meta || {}),
+      ...(meta.extraMeta || {})
+    }
+  };
+}
+
+const internalTools = [
   {
     name: "psis_test_connection",
     description: "농약안전정보시스템 API 키 또는 전체 PSIS URL이 정상 작동하는지 테스트합니다.",
@@ -38,7 +61,7 @@ export const tools = [
         psisApiKey: psisApiKeyProperty,
         apiKey: psisApiKeyProperty,
         pestiBrandName: { ...inputString, description: "선택. 테스트용 상표명. 예: 살비왕" },
-        serviceType: { ...inputString, description: "선택. 기본 AA002." },
+        serviceType: { ...inputString, description: "선택. 기본 AA001." },
         displayCount: { type: "integer", minimum: 1, maximum: 50 }
       },
       additionalProperties: false
@@ -61,7 +84,7 @@ export const tools = [
         similarFlag: { ...inputString, enum: ["Y", "N"], description: "Y이면 적용병해충 유사도 검색" },
         useName: { ...inputString, description: "용도 검색어. 예: 살균제, 살충제" },
         compName: { ...inputString, description: "회사명 검색어" },
-        serviceType: { ...inputString, description: "선택. 기본 AA002. PSIS 문서/계정에 따라 AA001 등을 지정할 수 있습니다." },
+        serviceType: { ...inputString, description: "선택. 기본 AA001. PSIS 서버 파싱용 XML 응답입니다." },
         displayCount: { type: "integer", minimum: 1, maximum: 50 }
       },
       additionalProperties: false
@@ -78,7 +101,7 @@ export const tools = [
         apiKey: psisApiKeyProperty,
         pestiCode: { ...inputString, description: "농약품목코드 상세정보 조회키" },
         diseaseUseSeq: { ...inputString, description: "병해충사용방법 상세정보 조회키" },
-        serviceType: { ...inputString, description: "선택. 기본 AA002." }
+        serviceType: { ...inputString, description: "선택. 기본 AA001." }
       },
       required: ["pestiCode", "diseaseUseSeq"],
       additionalProperties: false
@@ -96,7 +119,7 @@ export const tools = [
         pestiBrandName: { ...inputString, description: "상표명 검색어" },
         pestiKorName: { ...inputString, description: "품목명 검색어" },
         compName: { ...inputString, description: "회사명 검색어" },
-        serviceType: { ...inputString, description: "선택. 기본 AA002." },
+        serviceType: { ...inputString, description: "선택. 기본 AA001." },
         displayCount: { type: "integer", minimum: 1, maximum: 50 }
       },
       additionalProperties: false
@@ -130,7 +153,7 @@ export const tools = [
         useMonth: { type: "integer", minimum: 1, maximum: 12, description: "사용 월. 예: 6" },
         dilution: { ...inputString, description: "실제 희석배수. 선택" },
         applicationMethod: { ...inputString, description: "살포방법. 선택" },
-        serviceType: { ...inputString, description: "선택. 기본 AA002." }
+        serviceType: { ...inputString, description: "선택. 기본 AA001." }
       },
       required: ["productName", "cropName", "targetPestOrDisease"],
       additionalProperties: false
@@ -153,6 +176,31 @@ export const tools = [
     }
   }
 ];
+
+const publicFitTool = withReadOnlyHints({
+  name: "check_landscape_pesticide_fit",
+  description: "읽기 전용 단일 조회 도구입니다. 제품명, 수종/작물명, 병해충명을 한 번에 받아 PSIS 등록정보와 등록취소 정보를 내부적으로 조회하고 조경 약품 사용 적합성을 판정합니다. 서버 URL의 ?psisApiKey= 또는 ?apiKey= 값을 자동 사용합니다.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      productName: { ...inputString, description: "제품명/상표명. 예: 살비왕, 오티바" },
+      cropName: { ...inputString, description: "수종/작물명. 예: 소나무, 조경수, 장미" },
+      targetPestOrDisease: { ...inputString, description: "대상 병해충. 예: 응애류, 점박이응애, 잎마름병" },
+      purpose: { ...inputString, description: "방제 목적 설명. 선택" },
+      useMonth: { type: "integer", minimum: 1, maximum: 12, description: "사용 월. 예: 6" },
+      dilution: { ...inputString, description: "실제 희석배수. 선택" },
+      applicationMethod: { ...inputString, description: "살포방법. 선택" }
+    },
+    required: ["productName", "cropName", "targetPestOrDisease"],
+    additionalProperties: false
+  }
+}, {
+  invoking: "농약안전정보시스템에서 등록 여부를 조회하고 있습니다.",
+  invoked: "농약 등록 적합성 판정이 완료되었습니다."
+});
+
+export const allTools = internalTools.map((tool) => withReadOnlyHints(tool));
+export const tools = config.mcpPublicTools === "all" ? allTools : [publicFitTool];
 
 export async function callTool(name, args = {}) {
   switch (name) {

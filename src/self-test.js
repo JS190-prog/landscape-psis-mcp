@@ -8,7 +8,11 @@ const init = await handleJsonRpc({ jsonrpc: "2.0", id: 1, method: "initialize", 
 assert.equal(init.result.serverInfo.name, "landscape-psis-mcp");
 
 const list = await handleJsonRpc({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
-assert.ok(list.result.tools.length >= 6);
+assert.equal(list.result.tools.length, 1);
+assert.equal(list.result.tools[0].name, "check_landscape_pesticide_fit");
+assert.equal(list.result.tools[0].annotations.readOnlyHint, true);
+assert.equal(list.result.tools[0].annotations.destructiveHint, false);
+assert.equal(list.result.tools[0].inputSchema.properties.psisApiKey, undefined);
 
 const norm = normalizeLandscapeTerms({ cropName: "소나무", targetPestOrDisease: "응애" });
 assert.ok(norm.cropCandidates.includes("조경수"));
