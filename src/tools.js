@@ -262,7 +262,10 @@ export async function callTool(name, args = {}) {
             targetPestOrDisease: args.targetPestOrDisease,
             registrationItems,
             cancelledItems: cancelled.items || [],
-            maxCandidates: config.fit.maxReturnedItems
+            maxCandidates: config.fit.maxReturnedItems,
+            useMonth: args.useMonth,
+            dilution: args.dilution,
+            applicationMethod: args.applicationMethod
           })
         : evaluateFit({ ...args, productName, registrationItems, cancelledItems: cancelled.items || [] });
 

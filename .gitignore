@@ -4,3 +4,5 @@ node_modules
 npm-debug.log*
 office/
 mcp-shell.log
+local_artifacts/
+localcodemcp_*.json
