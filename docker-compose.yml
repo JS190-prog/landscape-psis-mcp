@@ -1,0 +1,23 @@
+services:
+  landscape-psis-mcp:
+    build: .
+    container_name: landscape-psis-mcp
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      PUBLIC_BASE_URL: ""
+      PSIS_SERVICE_TYPE: AA002
+      REQUEST_TIMEOUT_MS: 15000
+      CACHE_ENABLED: "true"
+      CACHE_TTL_MS: 21600000
+      CACHE_MAX_ENTRIES: 1000
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_WINDOW_MS: 60000
+      RATE_LIMIT_MAX_PER_IP: 60
+      RATE_LIMIT_MAX_PER_KEY: 60
+      FIT_MAX_CANDIDATE_SEARCHES: 10
+      FIT_SEARCH_DISPLAY_COUNT: 10
+      FIT_MAX_RETURNED_ITEMS: 100
+      SAFE_ACCESS_LOG: "true"

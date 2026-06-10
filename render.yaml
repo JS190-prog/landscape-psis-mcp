@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: landscape-psis-mcp
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PSIS_SERVICE_TYPE
+        value: AA002
+      - key: REQUEST_TIMEOUT_MS
+        value: "15000"
+      - key: CACHE_ENABLED
+        value: "true"
+      - key: CACHE_TTL_MS
+        value: "21600000"
+      - key: CACHE_MAX_ENTRIES
+        value: "1000"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RATE_LIMIT_MAX_PER_IP
+        value: "60"
+      - key: RATE_LIMIT_MAX_PER_KEY
+        value: "60"
+      - key: FIT_MAX_CANDIDATE_SEARCHES
+        value: "10"
+      - key: FIT_SEARCH_DISPLAY_COUNT
+        value: "10"
+      - key: FIT_MAX_RETURNED_ITEMS
+        value: "100"
+      - key: SAFE_ACCESS_LOG
+        value: "true"
