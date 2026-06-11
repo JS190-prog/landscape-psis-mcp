@@ -1,140 +1,329 @@
-# 조경수 농약 적합성 판단 MCP 서버
+# 조경수 농약 적합성 판단 MCP
 
-농약안전정보시스템(PSIS) OpenAPI를 ChatGPT 새 앱에서 MCP 도구로 사용할 수 있게 감싸는 서버입니다. 사용 방식은 `korean-law-mcp`처럼 **MCP 서버 URL 뒤에 공공 API 키를 query parameter로 붙이는 방식**을 기본으로 합니다.
+조경 현장에서 수목 병해충 방제 전에 **이 농약을 이 수종과 병해충에 사용해도 되는지**를 빠르게 확인하기 위한 ChatGPT MCP 도구입니다.
 
-이번 최종본은 공용 VPS 운영과 ChatGPT 도구 승인 질문 최소화를 전제로 다음 보호 기능을 반영했습니다.
+이 MCP는 농촌진흥청 농약안전정보시스템(PSIS) 공개 OpenAPI를 조회하여, 사용자가 입력한 **제품명·수종·병해충명·사용 시기·살포 목적**을 기준으로 등록 적합성을 확인합니다. 핵심 목적은 개발자용 API 테스트가 아니라, 조경 실무자가 현장에서 농약 선택 전에 등록 여부를 한 번 더 확인할 수 있게 하는 것입니다.
 
-- 사용자별 URL query API 키 지원: `/mcp?psisApiKey=발급키` 또는 `/mcp?apiKey=발급키`
-- IP별 / API 키별 rate limit
-- PSIS 응답 메모리 캐시
-- PSIS 요청 timeout
-- API 키 로그 마스킹 및 query string 미기록 safe access log
-- 적합성 판정 시 후보 검색 수 / 검색 결과 수 제한
-- Nginx VPS 배포 가이드 포함
-- PSIS HTTP fetch 실패 시 Node http fallback 및 `/debug/psis` 진단 endpoint
-- ChatGPT에는 기본적으로 읽기 전용 단일 도구 `check_landscape_pesticide_fit`만 노출
-- MCP tool descriptor에 `readOnlyHint`, `destructiveHint:false`, `idempotentHint` 적용
+---
 
-## 1. ChatGPT 새 앱 입력값
+## 1. 이 MCP가 실무에서 필요한 이유
 
-ChatGPT 새 앱 창에는 아래처럼 입력합니다.
+조경수 방제 업무에서는 다음과 같은 상황이 자주 발생합니다.
+
+- 6월에 소나무 가지가 누렇게 변해 응애류, 진딧물류, 병해 가능성을 검토해야 하는 경우
+- 현장에 보유 중인 농약이 해당 수종과 병해충에 등록되어 있는지 확인해야 하는 경우
+- 견적서, 작업지시서, 방제계획서에 사용할 약제를 정하기 전에 근거 자료가 필요한 경우
+- 작업자가 관행적으로 쓰던 약제가 현재도 등록되어 있는지 확인해야 하는 경우
+- 조경수, 가로수, 공원 수목, 공동주택 식재지 등에서 사용 가능한 약제를 후보군으로 검토해야 하는 경우
+
+이 MCP를 사용하면 ChatGPT에서 자연어로 질문하고, PSIS 등록정보 기반으로 **적합 / 부적합 / 확인 필요** 판단을 받을 수 있습니다.
+
+---
+
+## 2. 대표적인 사용 장면
+
+### 2.1 현장 방제 전 약제 적합성 확인
+
+예시 질문:
+
+```text
+6월에 소나무 가지가 노랗게 변해서 응애 방제를 하려고 합니다.
+살비왕을 소나무 응애류 방제에 사용해도 되는지 확인해줘.
+```
+
+확인 내용:
+
+- 제품명이 PSIS에 등록되어 있는지
+- 대상 수종 또는 작물명이 일치하는지
+- 병해충명이 일치하거나 유사한 등록 대상인지
+- 등록취소 농약에 해당하는지
+- 입력한 목적과 실제 등록 용도가 맞는지
+
+---
+
+### 2.2 제품명 없이 등록 약제 후보 찾기
+
+예시 질문:
+
+```text
+소나무 응애류에 등록된 조경수 농약 후보를 찾아줘.
+```
+
+이 경우 MCP는 제품명을 비워 두고, 수종과 병해충 기준으로 등록 약제 후보를 조회합니다.
+
+활용처:
+
+- 방제계획 수립
+- 농약 구매 전 후보 검토
+- 견적서 작성 전 약제 선정
+- 기존 보유 약제가 없을 때 대체 후보 확인
+
+---
+
+### 2.3 공동주택·공원·가로수 유지관리 업무
+
+예시 질문:
+
+```text
+공동주택 조경수 장미에 흰가루병이 발생했습니다.
+사용 가능한 등록 약제를 확인해줘.
+```
+
+활용처:
+
+- 관리사무소 방제 요청 검토
+- 조경 유지관리 업체 작업 전 사전 확인
+- 민원 대응 자료 작성
+- 방제 결과 보고서의 근거 보완
+
+---
+
+### 2.4 작업지시서·방제계획서 작성 전 확인
+
+예시 질문:
+
+```text
+이번 주 방제계획서에 넣을 약제입니다.
+오티바를 소나무 잎마름병 방제 목적으로 사용할 수 있는지 확인해줘.
+```
+
+확인 후 다음과 같은 식으로 업무 문서에 반영할 수 있습니다.
+
+```text
+농약안전정보시스템 등록정보 확인 결과, 해당 수종 및 병해충에 대한 등록 적합성을 검토한 후 사용 여부를 결정함.
+```
+
+단, 최종 문서에는 반드시 실제 제품 라벨과 PSIS 원문 확인 결과를 함께 검토하는 것이 안전합니다.
+
+---
+
+## 3. ChatGPT에서 어떻게 질문하면 좋은가
+
+가장 정확한 확인을 위해 아래 정보를 함께 입력하는 것이 좋습니다.
+
+| 입력 항목 | 예시 | 설명 |
+|---|---|---|
+| 제품명 | 살비왕, 오티바 | 이미 사용할 농약이 정해져 있을 때 입력 |
+| 수종 / 작물명 | 소나무, 장미, 벚나무, 조경수 | 방제 대상 수목 또는 작물명 |
+| 병해충명 | 응애류, 진딧물류, 잎마름병, 흰가루병 | 방제하려는 병해충 |
+| 사용 월 | 6월 | 발생 시기와 방제 목적 설명에 활용 |
+| 사용 목적 | 가지 황화, 잎 피해, 병반 발생 | 실제 현장 증상 설명 |
+| 살포 방법 | 경엽처리, 관주, 수간주사 등 | 등록 사용방법과 비교할 때 참고 |
+
+권장 질문 형식:
+
+```text
+제품명: 살비왕
+수종: 소나무
+대상 병해충: 응애류
+사용 시기: 6월
+현장 증상: 가지와 잎이 노랗게 변함
+이 농약을 사용해도 되는지 PSIS 기준으로 확인해줘.
+```
+
+제품명이 없을 때:
+
+```text
+수종: 소나무
+대상 병해충: 응애류
+사용 시기: 6월
+등록된 농약 후보를 찾아줘.
+```
+
+---
+
+## 4. 결과를 해석하는 방법
+
+MCP의 판정은 보통 다음 관점으로 확인합니다.
+
+### 적합
+
+제품명, 수종, 병해충명이 PSIS 등록정보와 충분히 일치하는 경우입니다.
+
+실무적으로는 다음을 추가 확인한 뒤 사용합니다.
+
+- 제품 라벨의 작물명·병해충명·사용량·희석배수
+- 안전사용기준
+- 살포 가능 시기
+- 작업자 보호장비
+- 주변 식재, 수계, 보행자 통행 여부
+
+### 부적합
+
+제품은 존재하지만 입력한 수종 또는 병해충에 등록되어 있지 않거나, 등록취소 정보가 확인되는 경우입니다.
+
+이 경우 관행 사용을 피하고, 등록된 다른 약제를 찾아야 합니다.
+
+### 확인 필요
+
+입력한 수종명이나 병해충명이 PSIS 표기와 완전히 일치하지 않거나, 조경수처럼 넓은 표현과 개별 수종 표현 사이에 차이가 있는 경우입니다.
+
+이 경우 다음과 같이 다시 질문하는 것이 좋습니다.
+
+```text
+소나무 대신 조경수 또는 침엽수 기준으로 다시 확인해줘.
+```
+
+또는
+
+```text
+응애류와 점박이응애를 모두 기준으로 후보를 다시 찾아줘.
+```
+
+---
+
+## 5. ChatGPT 새 앱 연결 방법
+
+ChatGPT 새 앱에서 MCP 서버를 연결할 때 아래 값을 입력합니다.
 
 | 항목 | 값 |
 |---|---|
 | 이름 | 조경수 농약 적합성 판단 |
-| 설명 | 농약안전정보시스템 OpenAPI로 조경수 농약 등록정보와 적합성을 확인합니다. |
+| 설명 | 농약안전정보시스템 등록정보를 기준으로 조경수 농약 사용 적합성을 확인합니다. |
 | 연결 | 서버 URL |
 | 인증 | 인증 없음 |
 | 서버 URL | `https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=발급키` |
 
-`apiKey` 이름도 호환됩니다.
+`apiKey` 이름도 사용할 수 있습니다.
 
 ```text
 https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?apiKey=발급키
 ```
 
-SSE 화면만 보이는 클라이언트에서는 아래도 지원합니다.
+SSE 연결이 필요한 클라이언트에서는 다음 주소를 사용할 수 있습니다.
 
 ```text
 https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/sse?psisApiKey=발급키
 ```
 
-직접 배포해서 사용하는 경우에는 자신의 배포 주소를 사용합니다.
+직접 배포한 서버를 사용하는 경우에는 자신의 배포 주소를 사용합니다.
 
 ```text
 https://배포주소/mcp?psisApiKey=발급키
 ```
 
-중요: ChatGPT 새 앱 서버 URL에는 `http://psis.rda.go.kr/openApi/service.do?...`를 직접 넣지 않습니다. 그 주소는 원본 PSIS API이고, ChatGPT에는 이 MCP 서버를 배포한 주소를 넣습니다.
+중요: ChatGPT 새 앱 서버 URL에는 PSIS 원본 API 주소를 직접 넣지 않습니다. ChatGPT에는 이 MCP 서버 주소를 입력하고, MCP 서버가 내부적으로 PSIS OpenAPI를 조회합니다.
 
-## 2. 내부 PSIS 호출 방식
+---
 
-사용자가 다음처럼 연결하면,
+## 6. PSIS API 키 발급
 
-```text
-https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=YOUR_KEY
-```
-
-MCP 서버는 내부적으로 아래 PSIS API를 호출합니다.
+PSIS OpenAPI 키는 농약안전정보시스템에서 신청합니다.
 
 ```text
-http://psis.rda.go.kr/openApi/service.do?apiKey=YOUR_KEY&serviceCode=SVC01&serviceType=AA001
+https://psis.rda.go.kr/psis/cont/contentMain.ps?menuId=PS00381
 ```
 
-서비스코드는 서버가 자동 전환합니다.
+사이트에서 OpenAPI 키를 신청하고 승인되면 발급된 키를 MCP 서버 URL의 `psisApiKey` 값으로 넣습니다.
 
-| 기능 | 내부 호출 |
-|---|---|
-| 농약등록정보 목록 검색 | `serviceCode=SVC01` |
-| 농약등록정보 상세 조회 | `serviceCode=SVC02` |
-| 등록취소 농약 조회 | `openApi/cnclAgchm.do` + `serviceCode=SVC08` |
+예시:
 
-`serviceType` 기본값은 `AA001`(XML)입니다. `AA002`는 브라우저용 HTML 위젯이라 서버가 자동으로 `AA001`로 교정합니다.
-
-## 3. ChatGPT에 노출되는 MCP 도구
-
-기본값은 `MCP_PUBLIC_TOOLS=fit-only`입니다. ChatGPT에는 아래 읽기 전용 단일 도구만 노출됩니다.
-
-- `check_landscape_pesticide_fit`: 제품명·수종·병해충 기준으로 PSIS 목록 검색, 등록취소 조회, 조경 용어 정규화, 적합성 판정을 한 번에 수행
-
-이렇게 하면 ChatGPT가 여러 개의 세부 도구를 반복 선택하지 않아 도구 사용 승인 질문이 줄어듭니다. 이 도구 descriptor에는 다음 힌트가 포함됩니다.
-
-```json
-{
-  "readOnlyHint": true,
-  "destructiveHint": false,
-  "idempotentHint": true,
-  "openWorldHint": true
-}
+```text
+https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=발급받은키
 ```
 
-관리자/debug 목적으로 모든 도구를 노출하려면 `.env`에 아래를 설정합니다.
+---
 
-```env
-MCP_PUBLIC_TOOLS=all
+## 7. ChatGPT에 노출되는 도구
+
+기본 설정에서는 ChatGPT에 읽기 전용 도구 1개만 노출됩니다.
+
+```text
+check_landscape_pesticide_fit
 ```
 
-`all` 모드에서 노출되는 도구는 다음입니다.
+이 도구는 다음 작업을 한 번에 수행합니다.
 
-- `psis_test_connection`: PSIS 키 연결 테스트
-- `psis_debug_connection`: 브라우저에서는 되지만 서버에서 `fetch failed`가 날 때 PSIS HTTP/DNS/outbound 진단
-- `psis_search_pesticides`: 농약등록정보 목록 검색
-- `psis_get_pesticide_detail`: 농약등록정보 상세 조회
-- `psis_search_cancelled_pesticides`: 등록취소 농약 조회
-- `normalize_landscape_terms`: 소나무/조경수/응애 등 현장 용어 정규화
-- `check_landscape_pesticide_fit`: 제품명·수종·병해충 기준 적합성 판정
-- `psis_raw_request`: 고급 사용자용 원시 PSIS 요청
+- 제품명 기준 농약등록정보 검색
+- 수종 / 작물명 기준 등록정보 검색
+- 병해충명 기준 등록정보 검색
+- 등록취소 농약 여부 확인
+- 조경 현장 용어 정규화
+- 최종 적합성 판정
 
-## 4. 빠른 실행
+도구가 하나만 노출되도록 구성한 이유는 ChatGPT가 여러 세부 도구를 반복 호출하지 않게 하여, 실제 사용자가 더 간단하게 결과를 받을 수 있도록 하기 위해서입니다.
+
+---
+
+## 8. 실무 적용 시 주의사항
+
+이 MCP는 농약 사용을 자동으로 결정해주는 도구가 아닙니다. **등록정보 확인을 보조하는 도구**입니다.
+
+실제 살포 전에는 반드시 다음을 확인해야 합니다.
+
+- 제품 라벨의 적용 작물과 병해충
+- 희석배수, 사용량, 사용방법
+- 안전사용기준과 취급 제한 사항
+- 등록취소 또는 사용 제한 여부
+- 현장 수목의 실제 피해 원인
+- 주변 보행자, 반려동물, 수계, 어린이 이용 공간 등 안전 조건
+
+특히 잎이 노랗게 변하는 증상은 응애, 진딧물, 병해, 수분 스트레스, 이식 스트레스, 토양 문제, 제초제 피해 등 원인이 다양할 수 있습니다. MCP 결과는 농약 등록 적합성 확인용으로 사용하고, 병해충 진단 자체는 현장 조사와 전문가 판단을 병행해야 합니다.
+
+---
+
+## 9. 운영자용 빠른 실행
+
+로컬에서 실행하려면 다음 명령을 사용합니다.
 
 ```bash
 npm install
 npm start
 ```
 
-로컬 확인:
+상태 확인:
 
 ```text
 http://localhost:3000/health
 ```
 
-로컬에서 query key 전달 테스트:
+API 키 전달 인식 확인:
 
 ```text
 http://localhost:3000/health?psisApiKey=발급키
 ```
 
-응답의 `queryKeyMode.hasQueryApiKey`가 `true`이면 서버 URL query key 방식이 인식된 것입니다.
+응답의 `queryKeyMode.hasQueryApiKey`가 `true`이면 URL query 방식의 API 키가 인식된 것입니다.
 
-PSIS 원본 API가 브라우저에서는 열리는데 MCP 서버에서 `fetch failed`가 나면 아래 진단 endpoint를 확인합니다. 응답에는 API 키가 마스킹됩니다.
+---
+
+## 10. 운영자용 REST 테스트
+
+제품 검색 테스트:
 
 ```text
-http://localhost:3000/debug/psis?psisApiKey=발급키&pestiBrandName=살비왕
+GET /api/search?psisApiKey=발급키&pestiBrandName=살비왕&cropName=소나무&diseaseWeedName=응애류
 ```
 
-## 5. VPS 배포 권장 구성
+적합성 판정 테스트:
 
-권장 구조:
+```text
+GET /api/fit?psisApiKey=발급키&productName=살비왕&cropName=소나무&targetPestOrDisease=응애류
+```
+
+PSIS 연결 진단:
+
+```text
+GET /debug/psis?psisApiKey=발급키&pestiBrandName=살비왕
+```
+
+응답과 로그에서는 API 키가 마스킹되도록 구성되어 있습니다.
+
+---
+
+## 11. 배포 구성 참고
+
+권장 배포 구조는 다음과 같습니다.
+
+```text
+ChatGPT 새 앱
+→ MCP 서버 URL
+→ Cloudflare Workers 또는 HTTPS 프록시
+→ VPS / Node.js MCP 서버
+→ PSIS OpenAPI
+```
+
+VPS 직접 운영 시에는 다음 구조를 권장합니다.
 
 ```text
 Ubuntu VPS
@@ -144,11 +333,17 @@ Ubuntu VPS
 → ChatGPT 새 앱: https://도메인/mcp?psisApiKey=사용자키
 ```
 
-상세 Nginx 예시는 `docs/NGINX_VPS.md`를 확인하세요. 핵심은 **Nginx access log에 query string을 남기지 않는 것**입니다.
+Nginx 설정에서는 query string이 access log에 남지 않도록 주의해야 합니다. 상세 예시는 다음 문서를 참고합니다.
 
-## 6. 공용 서버 보호 설정
+```text
+docs/NGINX_VPS.md
+```
 
-`.env`에서 조정할 수 있습니다.
+---
+
+## 12. 공용 서버 보호 설정
+
+공용 서버로 운영할 때는 `.env`에서 요청 제한, 캐시, timeout, 공개 도구 범위를 조정할 수 있습니다.
 
 ```env
 REQUEST_TIMEOUT_MS=15000
@@ -167,7 +362,7 @@ MCP_PUBLIC_TOOLS=fit-only
 PSIS_HTTP_CLIENT=fetch-first
 ```
 
-의미:
+주요 설정 의미:
 
 | 설정 | 기본값 | 설명 |
 |---|---:|---|
@@ -176,76 +371,77 @@ PSIS_HTTP_CLIENT=fetch-first
 | `CACHE_TTL_MS` | 21600000 | 동일 PSIS 검색 결과 6시간 캐시 |
 | `REQUEST_TIMEOUT_MS` | 15000 | PSIS API 응답 대기 제한 |
 | `FIT_MAX_CANDIDATE_SEARCHES` | 10 | 적합성 판정 1회당 후보 검색 API 호출 제한 |
-| `FIT_SEARCH_DISPLAY_COUNT` | 10 | 후보 검색 1회당 결과 수 제한 |
+| `FIT_SEARCH_DISPLAY_COUNT` | 10 | 후보 검색 1회당 표시 결과 수 제한 |
 | `SAFE_ACCESS_LOG` | true | access log에서 query string/API 키 제외 |
-| `MCP_PUBLIC_TOOLS` | fit-only | ChatGPT에는 단일 판정 도구만 노출. 관리자용은 `all` |
-| `PSIS_HTTP_CLIENT` | fetch-first | `fetch-first` 또는 `node`. Node fetch가 실패하면 `node`로 강제 가능 |
+| `MCP_PUBLIC_TOOLS` | fit-only | ChatGPT에는 단일 판정 도구만 노출 |
+| `PSIS_HTTP_CLIENT` | fetch-first | fetch 실패 시 Node http fallback 사용 가능 |
 
-## 7. 보조 환경변수 방식
+---
 
-URL에 키를 붙이고 싶지 않은 경우 서버 환경변수도 지원합니다.
+## 13. 관리자 / 디버그 도구
 
-```env
-PSIS_API_KEY=발급키
-```
-
-또는 전체 PSIS URL 방식도 지원합니다.
+기본값은 `MCP_PUBLIC_TOOLS=fit-only`입니다. 관리자 또는 디버그 목적으로 전체 도구를 노출하려면 `.env`에 다음을 설정합니다.
 
 ```env
-PSIS_API_BASE_URL=http://psis.rda.go.kr/openApi/service.do?apiKey=발급키&serviceCode=SVC01&serviceType=AA001
+MCP_PUBLIC_TOOLS=all
 ```
 
-우선순위는 다음과 같습니다.
+전체 도구 노출 시 사용할 수 있는 도구는 다음과 같습니다.
 
-1. `/mcp?psisApiKey=...` 또는 `/mcp?apiKey=...`
-2. 도구 인자 `psisApiKey`, `apiKey`, `psisApiUrl`
-3. 서버 환경변수 `PSIS_API_BASE_URL`
-4. 서버 환경변수 `PSIS_API_KEY`
+- `psis_test_connection`: PSIS 키 연결 테스트
+- `psis_debug_connection`: PSIS HTTP/DNS/outbound 진단
+- `psis_search_pesticides`: 농약등록정보 목록 검색
+- `psis_get_pesticide_detail`: 농약등록정보 상세 조회
+- `psis_search_cancelled_pesticides`: 등록취소 농약 조회
+- `normalize_landscape_terms`: 조경 현장 용어 정규화
+- `check_landscape_pesticide_fit`: 제품명·수종·병해충 기준 적합성 판정
+- `psis_raw_request`: 고급 사용자용 원시 PSIS 요청
 
-## 8. REST / debug 테스트
+일반 사용자에게는 전체 도구 노출보다 `fit-only` 구성을 권장합니다.
 
-PSIS 브라우저 호출은 되는데 서버에서 실패할 때는 다음을 먼저 확인합니다.
+---
 
-```text
-GET /debug/psis?psisApiKey=발급키&pestiBrandName=살비왕
-```
+## 14. API 키와 보안 주의
 
-응답의 `transport`가 `fetch`, `node-http`, `node-http-fallback` 중 무엇인지 확인합니다. DNS 오류나 outbound HTTP 차단이 있으면 `details.target`, `details.fetchFailure`, `details.nodeHttpFailure`에 구조화되어 표시됩니다.
+URL query 방식은 사용이 쉽지만, API 키가 브라우저 기록, 프록시 로그, 웹서버 access log에 남을 수 있습니다.
 
-VPS에서 Node fetch만 실패하면 `.env`에 아래를 추가해 Node 기본 http 모듈을 우선 사용하도록 할 수 있습니다.
+이 MCP는 앱 로그와 응답에서 API 키를 마스킹하도록 구성되어 있지만, 실제 운영 환경에서는 다음을 반드시 확인해야 합니다.
 
-```env
-PSIS_HTTP_CLIENT=node
-```
+- Nginx 또는 프록시 access log에서 query string 제외
+- 오류 로그에 전체 URL이 남지 않도록 설정
+- GitHub README, 예제 파일, 스크린샷에 실제 API 키 업로드 금지
+- 공용 서버 운영 시 IP별 / API 키별 rate limit 적용
+- 필요 시 사용자별 API 키 발급 방식 안내
 
-## 9. REST 테스트
+개인용, 소규모 공용, 공공 API 편의형 사용에는 query key 방식이 간단합니다. 대규모 운영 서비스에서는 OAuth, 사용자별 암호화 저장, 별도 인증 프록시 방식을 검토하는 것이 좋습니다.
 
-브라우저/REST로도 테스트할 수 있습니다.
+---
 
-```text
-GET /api/search?psisApiKey=발급키&pestiBrandName=살비왕&cropName=소나무&diseaseWeedName=응애류
-```
+## 15. 이 MCP가 하지 않는 일
 
-```text
-GET /api/fit?psisApiKey=발급키&productName=살비왕&cropName=소나무&targetPestOrDisease=응애류
-```
+이 MCP는 다음을 대신하지 않습니다.
 
-응답의 request 정보에서는 `apiKey`가 `[REDACTED]`로 마스킹됩니다.
+- 실제 병해충 진단
+- 현장 조사
+- 농약 제품 라벨 확인
+- 안전사용기준 확인
+- 전문가의 최종 판단
+- 지자체, 발주처, 관리주체의 별도 기준 검토
 
-## 10. 보안 주의
+즉, 이 MCP는 “사용 가능한 농약을 자동으로 골라주는 도구”라기보다, **PSIS 등록정보를 빠르게 조회하여 실무 판단의 근거를 보강하는 도구**입니다.
 
-URL query key 방식은 사용이 가장 쉽지만, API 키가 브라우저 기록, 프록시 로그, 서버 접근 로그에 남을 수 있습니다. 이 프로그램은 앱 로그와 응답에서 API 키를 마스킹하지만, **Nginx/웹서버 access log도 반드시 query string 제외 방식으로 설정**해야 합니다.
+---
 
-개인용·소규모 공용 또는 공공 API 편의형 사용에는 적합하지만, 대규모 운영 서비스에서는 OAuth 또는 사용자별 암호화 저장 방식을 권장합니다.
+## 16. 면책 조항
 
-## 11. 한계
+이 MCP의 판정 결과는 농촌진흥청 농약안전정보시스템(PSIS) 공개 데이터 기반의 참고 정보입니다.
 
-이 서버는 농약등록정보 기준으로 적합성을 판단합니다. 실제 수목 병해충 진단은 현장 사진, 피해 양상, 발생 시기, 수목 상태 자료가 필요합니다.
+실제 농약 선택과 사용은 반드시 제품 등록 라벨, 안전사용기준, 현장 여건, 관련 법령, 전문가 판단을 함께 검토한 후 결정해야 합니다. 판정 결과의 오류·누락 또는 그 사용으로 발생하는 손해에 대해 개발자는 책임을 지지 않습니다.
 
-## ⚠️ 면책 조항 (Disclaimer)
+---
 
-이 서버의 판정 결과는 농약안전정보시스템(PSIS) 공개 데이터 기반의 **참고 정보**입니다. 실제 농약 선택·사용은 반드시 제품 등록 라벨과 전문가 판단을 따라야 하며, 판정 결과의 오류·누락 또는 그 사용으로 발생하는 어떠한 손해에 대해서도 개발자는 책임을 지지 않습니다.
+## 17. 데이터 출처
 
-### 데이터 출처 고지
+본 MCP는 농촌진흥청 농약안전정보시스템(PSIS) 공개 OpenAPI 데이터를 사용합니다.
 
-본 서버는 농촌진흥청 농약안전정보시스템(PSIS) 공개 OpenAPI 데이터를 사용합니다. 농촌진흥청은 본 서비스를 보증하거나 제휴하지 않으며, 데이터의 최신성·정확성은 원천 시스템 기준입니다.
+농촌진흥청은 본 MCP 서비스를 보증하거나 제휴하지 않으며, 데이터의 최신성·정확성은 원천 시스템 기준입니다.
