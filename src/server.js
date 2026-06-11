@@ -10,9 +10,22 @@ import { describePsisConfig } from "./psisClient.js";
 const app = express();
 const sseSessions = new Map();
 
+// Optional deployment-local extension. When src/local.js exists it can attach
+// extra middleware and routes; the server runs identically without it.
+let localExt = null;
+try {
+  localExt = await import("./local.js");
+} catch (error) {
+  if (error?.code !== "ERR_MODULE_NOT_FOUND") {
+    console.error("local extension failed to load:", error?.message || error);
+  }
+}
+
 
 function requestToolDefaults(req) {
-  const psisApiKey = req.query.psisApiKey || req.query.apiKey || req.query.key || "";
+  // Key priority: URL query > HTTP header (apikey / x-psis-api-key) > env fallback in psisClient.
+  const psisApiKey = req.query.psisApiKey || req.query.apiKey || req.query.key
+    || req.headers["apikey"] || req.headers["x-psis-api-key"] || "";
   const psisApiUrl = req.query.psisApiUrl || req.query.apiUrl || "";
   const serviceType = req.query.serviceType || "";
   const out = {};
@@ -46,12 +59,13 @@ app.use((req, res, next) => {
   next();
 });
 
+if (typeof localExt?.beforeRateLimit === "function") app.use(localExt.beforeRateLimit);
 app.use(rateLimitMiddleware);
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version, apikey, x-psis-api-key");
   if (req.method === "OPTIONS") return res.status(204).end();
   next();
 });
@@ -72,6 +86,7 @@ PSIS debug: /debug/psis?psisApiKey=YOUR_PSIS_KEY&pestiBrandName=살비왕
 
 사용 방식:
 - korean-law-mcp 스타일: /mcp?psisApiKey=발급키 또는 /mcp?apiKey=발급키
+- HTTP 헤더 방식: apikey: 발급키 (또는 x-psis-api-key)
 - 보조 옵션: PSIS_API_BASE_URL 또는 PSIS_API_KEY 환경변수
 - 공용 서버 보호: rate limit, PSIS 응답 캐시, timeout, API 키 로그 마스킹 포함
 `);
@@ -81,7 +96,7 @@ app.get("/health", (req, res) => {
   res.json({
     ok: true,
     service: "landscape-psis-mcp",
-    version: "1.8.0",
+    version: "1.9.0",
     psis: describePsisConfig(),
     endpoints: metadata(req).endpoints,
     queryKeyMode: requestDebugDefaults(req)
@@ -91,6 +106,8 @@ app.get("/health", (req, res) => {
 app.get("/.well-known/mcp-server.json", (req, res) => {
   res.json(metadata(req));
 });
+
+if (typeof localExt?.registerRoutes === "function") localExt.registerRoutes(app, { sseSessions });
 
 // Streamable HTTP MCP endpoint. Recommended for current ChatGPT connectors.
 app.post("/mcp", async (req, res) => {

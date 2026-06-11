@@ -38,5 +38,8 @@ export function stripQuery(input) {
 }
 
 export function extractQueryApiKey(req) {
-  return req?.query?.psisApiKey || req?.query?.apiKey || req?.query?.key || "";
+  return (
+    req?.query?.psisApiKey || req?.query?.apiKey || req?.query?.key ||
+    req?.headers?.["apikey"] || req?.headers?.["x-psis-api-key"] || ""
+  );
 }

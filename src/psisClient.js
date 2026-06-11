@@ -3,6 +3,12 @@ import { config } from "./config.js";
 import { sanitizeUrlForLog } from "./security.js";
 import { diagnosticSuggestions, requestTextWithFallback } from "./httpClient.js";
 
+// Optional instrumentation hook: receives (durationMs, ok, isTimeout) per upstream call.
+let upstreamObserver = null;
+export function setUpstreamObserver(fn) {
+  upstreamObserver = typeof fn === "function" ? fn : null;
+}
+
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
@@ -183,12 +189,14 @@ async function fetchPsis(endpoint, params, args = {}) {
   const cached = getCache(key);
   if (cached) return cached;
 
+  const upstreamStarted = Date.now();
   try {
     const response = await requestTextWithFallback(url, {
       timeoutMs: config.requestTimeoutMs,
       mode: config.httpClientMode,
       headers: { "Accept": "application/xml,text/xml,application/json,*/*" }
     });
+    upstreamObserver?.(Date.now() - upstreamStarted, response.ok, false);
     const rawText = response.rawText;
     let parsed = null;
     try {
@@ -224,6 +232,7 @@ async function fetchPsis(endpoint, params, args = {}) {
     setCache(key, result);
     return result;
   } catch (error) {
+    upstreamObserver?.(Date.now() - upstreamStarted, false, error?.code === "PSIS_TIMEOUT");
     const err = new Error(error?.message || "PSIS API request failed.");
     err.code = error?.code || "PSIS_FETCH_FAILED";
     err.details = error?.details || {
@@ -340,6 +349,17 @@ export async function rawPsisRequest(args = {}) {
   const endpoint = args.endpoint === "cancelled" ? "cancelled" : "registration";
   const params = { ...(args.params || {}) };
   return fetchPsis(endpoint, params, args);
+}
+
+export function getCacheStats() {
+  return {
+    enabled: config.cache.enabled,
+    entries: responseCache.size,
+    maxEntries: config.cache.maxEntries,
+    hits: cacheHits,
+    misses: cacheMisses,
+    hitRatio: cacheHits + cacheMisses > 0 ? Number((cacheHits / (cacheHits + cacheMisses)).toFixed(3)) : 0
+  };
 }
 
 export function describePsisConfig() {
