@@ -1,6 +1,20 @@
 # 조경수 농약 적합성 판단 MCP
 
-조경 현장에서 수목 병해충 방제 전에 **이 농약을 이 수종과 병해충에 사용해도 되는지**를 빠르게 확인하기 위한 ChatGPT MCP 도구입니다.
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-339933.svg)](package.json)
+[![MCP](https://img.shields.io/badge/MCP-2025--03--26-blue.svg)](https://modelcontextprotocol.io)
+[![Version](https://img.shields.io/badge/version-1.9.0-orange.svg)](CHANGELOG.md)
+
+조경 현장에서 수목 병해충 방제 전에 **이 농약을 이 수종과 병해충에 사용해도 되는지**를 빠르게 확인하기 위한 MCP 도구입니다. ChatGPT, Claude, Cursor 등 MCP를 지원하는 AI 클라이언트에서 사용할 수 있습니다.
+
+> **English**: An MCP (Model Context Protocol) server that checks whether a pesticide
+> is officially registered for a specific landscape tree species and pest in Korea,
+> by querying the Rural Development Administration's PSIS (Pesticide Safety
+> Information System) OpenAPI. Bring your own free PSIS API key, append it to the
+> hosted server URL (`/mcp?psisApiKey=YOUR_KEY`) or send it as an `apikey` HTTP
+> header, and connect from ChatGPT, Claude.ai, Claude Desktop/Code, or Cursor.
+> Returns fit / unfit / needs-review judgments with recommendation scoring.
+> Korean documentation follows below.
 
 이 MCP는 농촌진흥청 농약안전정보시스템(PSIS) 공개 OpenAPI를 조회하여, 사용자가 입력한 **제품명·수종·병해충명·사용 시기·살포 목적**을 기준으로 등록 적합성을 확인합니다. 핵심 목적은 개발자용 API 테스트가 아니라, 조경 실무자가 현장에서 농약 선택 전에 등록 여부를 한 번 더 확인할 수 있게 하는 것입니다.
 
@@ -204,6 +218,64 @@ https://배포주소/mcp?psisApiKey=발급키
 
 중요: ChatGPT 새 앱 서버 URL에는 PSIS 원본 API 주소를 직접 넣지 않습니다. ChatGPT에는 이 MCP 서버 주소를 입력하고, MCP 서버가 내부적으로 PSIS OpenAPI를 조회합니다.
 
+### API 키 전달 방식 3가지
+
+| 방식 | 사용법 | 비고 |
+|---|---|---|
+| URL 쿼리 | `/mcp?psisApiKey=발급키` 또는 `?apiKey=발급키` | 가장 간단, ChatGPT 새 앱 권장 |
+| HTTP 헤더 | `apikey: 발급키` 또는 `x-psis-api-key: 발급키` | URL에 키가 남지 않아 로그 노출 위험이 적음 |
+| 환경변수 | 서버에 `PSIS_API_KEY` 또는 `PSIS_API_BASE_URL` 설정 | 직접 배포(셀프호스팅) 시 |
+
+우선순위는 URL 쿼리 > HTTP 헤더 > 환경변수입니다.
+
+### Claude·Cursor 등 다른 AI 클라이언트 연결
+
+이 서버는 표준 Streamable HTTP MCP라서 ChatGPT 외 클라이언트에서도 같은 URL로 연결됩니다.
+
+**Claude.ai (웹) — 커스텀 커넥터**
+
+설정 → 커넥터 → "커스텀 커넥터 추가"에서 URL 입력:
+
+```text
+https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=발급키
+```
+
+**Claude Code (CLI)**
+
+```bash
+claude mcp add --transport http landscape-psis "https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=발급키"
+```
+
+**Cursor**
+
+`.cursor/mcp.json` (프로젝트) 또는 `~/.cursor/mcp.json` (전역):
+
+```json
+{
+  "mcpServers": {
+    "landscape-psis": {
+      "url": "https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=발급키"
+    }
+  }
+}
+```
+
+**Gemini CLI**
+
+`~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "landscape-psis": {
+      "httpUrl": "https://landscapepsis-proxy.landscapepsis.workers.dev/lmcp/mcp?psisApiKey=발급키"
+    }
+  }
+}
+```
+
+URL에 키를 넣고 싶지 않은 클라이언트는 헤더 방식을 지원하는 경우 `apikey` 헤더로 전달할 수 있습니다 (예: Cursor `headers` 필드).
+
 ---
 
 ## 6. PSIS API 키 발급
@@ -403,7 +475,7 @@ MCP_PUBLIC_TOOLS=all
 
 ## 14. API 키와 보안 주의
 
-URL query 방식은 사용이 쉽지만, API 키가 브라우저 기록, 프록시 로그, 웹서버 access log에 남을 수 있습니다.
+URL query 방식은 사용이 쉽지만, API 키가 브라우저 기록, 프록시 로그, 웹서버 access log에 남을 수 있습니다. 클라이언트가 지원한다면 `apikey` HTTP 헤더 방식이 로그 노출 위험이 더 적습니다.
 
 이 MCP는 앱 로그와 응답에서 API 키를 마스킹하도록 구성되어 있지만, 실제 운영 환경에서는 다음을 반드시 확인해야 합니다.
 
