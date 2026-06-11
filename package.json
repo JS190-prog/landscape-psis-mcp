@@ -4,11 +4,46 @@
   "description": "MCP server for the Korean PSIS pesticide OpenAPI (ChatGPT, Claude, Cursor compatible) with query/header API key modes, cache, rate limit, timeout, API key masking, PSIS HTTP fallback, debug diagnostics, fit-only public MCP tool exposure, candidate-list lookup mode, field-level use-condition checks, and recommendation scoring.",
   "type": "module",
   "main": "src/server.js",
+  "bin": {
+    "landscape-psis-mcp": "src/server.js"
+  },
+  "files": [
+    "src/config.js",
+    "src/httpClient.js",
+    "src/landscape.js",
+    "src/mcp.js",
+    "src/psisClient.js",
+    "src/rateLimit.js",
+    "src/security.js",
+    "src/self-test.js",
+    "src/server.js",
+    "src/tools.js",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node src/self-test.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JS190-prog/landscape-psis-mcp.git"
+  },
+  "homepage": "https://github.com/JS190-prog/landscape-psis-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/JS190-prog/landscape-psis-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "pesticide",
+    "psis",
+    "landscape",
+    "korea",
+    "chatgpt",
+    "claude"
+  ],
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },

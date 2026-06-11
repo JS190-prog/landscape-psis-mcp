@@ -1,5 +1,6 @@
 # 조경수 농약 적합성 판단 MCP
 
+[![CI](https://github.com/JS190-prog/landscape-psis-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/JS190-prog/landscape-psis-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-339933.svg)](package.json)
 [![MCP](https://img.shields.io/badge/MCP-2025--03--26-blue.svg)](https://modelcontextprotocol.io)

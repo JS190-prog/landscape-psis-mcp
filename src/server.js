@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import express from "express";
 import crypto from "crypto";
 import { config } from "./config.js";
