@@ -412,6 +412,15 @@ Nginx 설정에서는 query string이 access log에 남지 않도록 주의해�
 docs/NGINX_VPS.md
 ```
 
+레포에 포함된 배포 설정 파일은 모두 **셀프호스팅용 예시 템플릿**입니다. 원하는 방식 하나만 골라 쓰면 됩니다.
+
+| 파일 | 용도 | 비고 |
+|---|---|---|
+| `docker-compose.yml` | Docker 셀프호스팅 | |
+| `fly.toml` | Fly.io 배포 | `app` 이름을 자신의 고유 이름으로 변경 필요 |
+| `render.yaml` | Render 배포 | |
+| `docs/NGINX_VPS.md` | VPS + Nginx + PM2 직접 운영 | |
+
 ---
 
 ## 12. 공용 서버 보호 설정

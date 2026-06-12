@@ -1,3 +1,5 @@
+# Fly.io 배포 예시 템플릿입니다. 직접 배포하려면 app 이름을 자신의 고유한
+# 이름으로 바꾸거나 `fly launch`로 새로 생성하세요 (Fly 앱 이름은 전역 유일).
 app = "landscape-psis-mcp"
 primary_region = "nrt"
 
