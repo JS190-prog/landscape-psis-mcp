@@ -1,5 +1,6 @@
 # 조경수 농약 적합성 판단 MCP
 
+[![npm](https://img.shields.io/npm/v/landscape-psis-mcp.svg)](https://www.npmjs.com/package/landscape-psis-mcp)
 [![CI](https://github.com/JS190-prog/landscape-psis-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/JS190-prog/landscape-psis-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-339933.svg)](package.json)
@@ -337,7 +338,14 @@ check_landscape_pesticide_fit
 
 ## 9. 운영자용 빠른 실행
 
-로컬에서 실행하려면 다음 명령을 사용합니다.
+npm으로 전역 설치하면 한 줄로 서버를 띄울 수 있습니다.
+
+```bash
+npm install -g landscape-psis-mcp
+landscape-psis-mcp
+```
+
+소스에서 직접 실행하려면 다음 명령을 사용합니다.
 
 ```bash
 npm install
