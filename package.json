@@ -18,6 +18,7 @@
     "src/self-test.js",
     "src/server.js",
     "src/tools.js",
+    "src/tools/",
     "CHANGELOG.md"
   ],
   "scripts": {
