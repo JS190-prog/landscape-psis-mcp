@@ -23,7 +23,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node src/self-test.js"
+    "test": "node --test \"test/*.test.js\""
   },
   "repository": {
     "type": "git",
