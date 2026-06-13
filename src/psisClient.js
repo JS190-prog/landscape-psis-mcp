@@ -32,6 +32,39 @@ const responseCache = new Map();
 let cacheHits = 0;
 let cacheMisses = 0;
 
+const RAW_REQUEST_ALLOWED_PARAMS = Object.freeze(new Set([
+  "serviceCode",
+  "serviceType",
+  "displayCount",
+  "startPoint",
+  "useName",
+  "cropName",
+  "cropCheck",
+  "cropName2",
+  "cropCheck2",
+  "cropName3",
+  "cropCheck3",
+  "cropName4",
+  "cropCheck4",
+  "diseaseWeedName",
+  "similarFlag",
+  "pestiKorName",
+  "pestiBrandName",
+  "brandName",
+  "compName",
+  "companyName",
+  "pestiCode",
+  "diseaseUseSeq"
+]));
+
+export function normalizeRawPsisParams(params = {}) {
+  const out = {};
+  for (const [key, value] of Object.entries(params || {})) {
+    if (RAW_REQUEST_ALLOWED_PARAMS.has(key)) out[key] = value;
+  }
+  return out;
+}
+
 function cacheKey(endpoint, params) {
   const clean = new URLSearchParams(params);
   clean.delete("apiKey");
@@ -347,7 +380,7 @@ export async function searchCancelledPesticides(args = {}) {
 
 export async function rawPsisRequest(args = {}) {
   const endpoint = args.endpoint === "cancelled" ? "cancelled" : "registration";
-  const params = { ...(args.params || {}) };
+  const params = normalizeRawPsisParams(args.params || {});
   return fetchPsis(endpoint, params, args);
 }
 

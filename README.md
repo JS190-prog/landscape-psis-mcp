@@ -487,6 +487,8 @@ MCP_PUBLIC_TOOLS=all
 - `check_landscape_pesticide_fit`: 제품명·수종·병해충 기준 적합성 판정
 - `psis_raw_request`: 고급 사용자용 원시 PSIS 요청
 
+`psis_raw_request`는 `registration` 또는 `cancelled` endpoint만 허용하며, 전달 파라미터도 PSIS 검색·상세조회에 쓰는 알려진 키만 사용합니다. 알 수 없는 파라미터는 upstream 요청 전에 버립니다.
+
 일반 사용자에게는 전체 도구 노출보다 `fit-only` 구성을 권장합니다.
 
 ---
