@@ -1,8 +1,14 @@
 node_modules
 .env
+.env.*
+!.env.example
 .DS_Store
 npm-debug.log*
 office/
 mcp-shell.log
 local_artifacts/
 localcodemcp_*.json
+OPERATOR.md
+public/
+src/local.js
+src/metrics.js

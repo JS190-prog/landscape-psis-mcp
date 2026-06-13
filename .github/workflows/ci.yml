@@ -19,4 +19,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - name: Guard private operator files
+        run: |
+          tracked="$(git ls-files OPERATOR.md public src/local.js src/metrics.js)"
+          if [ -n "$tracked" ]; then
+            echo "Private operator files must not be tracked in the public repository."
+            echo "$tracked"
+            exit 1
+          fi
       - run: npm test
