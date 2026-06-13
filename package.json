@@ -11,6 +11,7 @@
     "src/config.js",
     "src/httpClient.js",
     "src/landscape.js",
+    "src/landscape/",
     "src/mcp.js",
     "src/psisClient.js",
     "src/rateLimit.js",
