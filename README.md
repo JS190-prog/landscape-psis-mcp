@@ -440,6 +440,7 @@ REQUEST_TIMEOUT_MS=15000
 CACHE_ENABLED=true
 CACHE_TTL_MS=21600000
 CACHE_MAX_ENTRIES=1000
+TRUST_PROXY=loopback
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_PER_IP=60
@@ -456,6 +457,7 @@ PSIS_HTTP_CLIENT=fetch-first
 
 | 설정 | 기본값 | 설명 |
 |---|---:|---|
+| `TRUST_PROXY` | loopback | 전달 헤더를 신뢰할 reverse proxy의 IP/CIDR 목록. 직접 접속만 받으면 `false` |
 | `RATE_LIMIT_MAX_PER_IP` | 60 | IP별 1분 요청 제한 |
 | `RATE_LIMIT_MAX_PER_KEY` | 60 | API 키별 1분 요청 제한 |
 | `CACHE_TTL_MS` | 21600000 | 동일 PSIS 검색 결과 6시간 캐시 |
@@ -465,6 +467,13 @@ PSIS_HTTP_CLIENT=fetch-first
 | `SAFE_ACCESS_LOG` | true | access log에서 query string/API 키 제외 |
 | `MCP_PUBLIC_TOOLS` | fit-only | ChatGPT에는 단일 판정 도구만 노출 |
 | `PSIS_HTTP_CLIENT` | fetch-first | fetch 실패 시 Node http fallback 사용 가능 |
+
+IP별 요청 제한에는 Express가 신뢰 프록시 경계에 따라 계산한 `req.ip`를 사용합니다.
+기본값은 같은 호스트의 Nginx 같은 loopback 프록시만 신뢰합니다. 다른 호스트의
+프록시를 사용하면 `TRUST_PROXY=192.0.2.10,2001:db8::/64`처럼 실제 프록시의
+IP/CIDR만 지정하세요. 프록시는 클라이언트가 보낸 `X-Forwarded-For`를 덮어쓰거나
+실제 연결 IP를 오른쪽에 추가해야 합니다. `true`와 hop count는 지원하지 않습니다.
+설정 근거는 [Express behind proxies](https://expressjs.com/en/guide/behind-proxies.html)를 참고하세요.
 
 ---
 

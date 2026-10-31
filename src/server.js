@@ -46,7 +46,7 @@ function requestDebugDefaults(req) {
   };
 }
 
-app.set("trust proxy", true);
+app.set("trust proxy", config.trustProxy);
 app.use(express.json({ limit: "1mb" }));
 
 app.use((req, res, next) => {

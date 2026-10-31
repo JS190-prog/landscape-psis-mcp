@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 function numberEnv(name, fallback, { min, max } = {}) {
   const raw = process.env[name];
   const value = Number(raw ?? fallback);
@@ -17,8 +19,27 @@ function boolEnv(name, fallback = false) {
   return ["1", "true", "yes", "on"].includes(String(raw).toLowerCase());
 }
 
+export function parseTrustProxy(value) {
+  const raw = String(value ?? "loopback").trim() || "loopback";
+  if (raw.toLowerCase() === "false") return false;
+  const proxies = raw.split(",").map((proxy) => proxy.trim());
+  const valid = proxies.every((proxy) => {
+    if (proxy === "loopback") return true;
+    const [address, prefix, ...extra] = proxy.split("/");
+    const family = isIP(address);
+    return family !== 0 && extra.length === 0 && (
+      prefix === undefined || (/^\d+$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128))
+    );
+  });
+  if (!valid) {
+    throw new Error("TRUST_PROXY must be false, loopback, or a comma-separated IP/CIDR allowlist.");
+  }
+  return proxies;
+}
+
 export const config = {
   port: Number(process.env.PORT || 3000),
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   // Option A: put only the issued API key here. Public shared operation should prefer URL query keys per user.
   psisApiKey: process.env.PSIS_API_KEY || "",
   // Option B: paste the full PSIS API URL here, including apiKey/serviceCode/serviceType.
